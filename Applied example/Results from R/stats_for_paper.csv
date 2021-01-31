@@ -1,0 +1,15 @@
+name,value,section
+Naive meta est,1.73,NA
+Naive meta lo,1.5,NA
+Naive meta hi,1.99,NA
+Naive meta pval,< 0.001,NA
+Evalue est,2.85,NA
+Evalue CI,2.36,NA
+Naive perc gt 1.1,100,NA
+Naive meta tau,0.2,NA
+Ghat homogeneous,3.07,NA
+Ghat homogeneous lo,2.29,NA
+Ghat homogeneous hi,4.28,NA
+Ghat hetero,3.27,NA
+Ghat hetero lo,2.52,NA
+Ghat hetero hi,4.01,NA

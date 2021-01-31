@@ -1,0 +1,180 @@
+
+# @for paper: add same caveat about robust specification as in JAMA supplement
+
+
+# FROM BEFORE:
+# Note: Results produced by this script may differ slightly from those presented in the main text.
+#  Results in the main text were from the website, for which we had used rounded values as inputs.
+#  Here we use exact inputs. Also, confidence intervals produced by bootstrapping can differ slightly 
+#  across multiple runs. 
+
+rm( list = ls() )
+
+####################### SET UP ####################### 
+
+library(MetaUtility)
+library(ggplot2)
+library(dplyr)
+library(metafor)
+library(testthat)
+library(boot)
+library(EValue)
+library(here)
+
+code.dir = here("Applied example/Code")
+data.dir = here("Applied example/data")
+results.dir = here("Applied example/Results from R")
+overleaf.dir = "~/Dropbox/Apps/Overleaf/AR-T (Ann Rev tutorial on bias in meta-analyses)/R_objects"
+
+setwd(code.dir)
+source("helper.R")
+
+setwd(data.dir)
+d = fread("kodama_prepped.csv")
+
+# rounding digits
+digits = 2
+
+options( scipen = 99 )
+
+####################### NAIVE META-ANALYSIS ####################### 
+
+# got through each meta-analysis and fit naive analysis
+# also check normality, relevant only for parametric sensitivity analyses that use
+#   heterogeneous bias
+
+##### Naive meta-analysis #####
+( meta = rma.uni( yi = d$yi, 
+                  vi = d$vi, 
+                  method = "REML", 
+                  knha = TRUE ) )
+
+mu = meta$b
+t2 = meta$tau2
+mu.lo = meta$ci.lb
+mu.hi = meta$ci.ub
+mu.se = meta$se
+mu.pval = meta$pval
+
+print(meta)
+
+# to report
+cat("\n***Naive estimate (RR or HR) and CI:", paste( round( exp(mu), digits ),
+                                                     " [",
+                                                     round( exp(mu.lo), digits ),
+                                                     ", ",
+                                                     round( exp(mu.hi), digits ),
+                                                     "]",
+                                                     sep = "") )  
+
+update_result_csv( name = "Naive meta est",
+                   value = round( exp(mu), digits ) )
+
+update_result_csv( name = "Naive meta tau",
+                   value = round( sqrt(t2), digits ) )
+
+
+update_result_csv( name = "Naive meta lo",
+                   value = round( exp(mu.lo), digits ) )
+
+
+update_result_csv( name = "Naive meta hi",
+                   value = round( exp(mu.hi), digits ) )
+
+
+update_result_csv( name = "Naive meta pval",
+                   value = format.pval( mu.pval, eps=0.001 ) )
+
+
+##### Normality #####
+d$calib = calib_ests( yi = d$yi,
+                        sei = sqrt(d$vi) )
+
+cat("\n\nShapiro test: ")
+print( shapiro.test(d$calib) )
+
+qqnorm(d$calib)
+qqline(d$calib, col = "red")
+
+
+####################### SENSITIVITY ANALYSES ####################### 
+
+###### E-value for point estimate ######
+evals = evalue( est = RR( exp(meta$b) ),
+        lo = RR( exp(meta$ci.lb) ),
+        hi = RR( exp(meta$ci.ub) ) )
+
+# save results
+update_result_csv( name = "Evalue est",
+                   value = round( evals[ "E-values", "point" ], digits ) )
+
+update_result_csv( name = "Evalue CI",
+                   value = round( evals[ "E-values", "lower" ], digits ) )
+
+
+###### Naive Phat ######
+# uncorrected estimate of effects with RR > 1.1
+# Tmin and Gmin here also give amount of bias and of confounding required
+#   to reduce to less than 15% the percentage of meaningfully large effects
+cm = confounded_meta( method = "calibrated",
+                      q = log(1.1),
+                      r = 0.15,
+                      tail = "above",
+                      muB = 0,
+                      sigB = 0,
+                      d = d,
+                      yi.name = "yi",
+                      vi.name = "vi" )
+
+# save results
+update_result_csv( name = "Naive perc gt 1.1",
+                   value = round( 100*cm$Est[cm$Value == "Prop"], 0 ) )
+
+# no CI because at the ceiling
+
+
+###### Homogeneous Bias ######
+
+cm = confounded_meta( method = "calibrated",
+                      q = log(1.1),
+                      r = 0.15,
+                      tail = "above",
+                      
+                      dat = d,
+                      yi.name = "yi",
+                      vi.name = "vi",
+                      R = 1000 )
+
+# save results
+update_result_csv( name = "Ghat homogeneous",
+                   value = round( cm$Est[cm$Value == "Gmin"], 2 ) )
+
+update_result_csv( name = "Ghat homogeneous lo",
+                   value = round( cm$CI.lo[cm$Value == "Gmin"], 2 ) )
+
+update_result_csv( name = "Ghat homogeneous hi",
+                   value = round( cm$CI.hi[cm$Value == "Gmin"], 2 ) )
+
+
+###### Heterogeneous Bias ######
+
+cm = confounded_meta( method = "parametric",
+                 q = log(1.1),
+                 r = 0.15,
+                 tail = "above",
+                 muB = log(1.5),
+                 sigB = sqrt( 0.8 * meta$tau2 ),
+                 yr = meta$b,
+                 vyr = meta$se^2,
+                 t2 = meta$tau2,
+                 vt2 = meta$se.tau2^2 )
+
+# save results
+update_result_csv( name = "Ghat hetero",
+                   value = round( cm$Est[cm$Value == "Gmin"], 2 ) )
+
+update_result_csv( name = "Ghat hetero lo",
+                   value = round( cm$CI.lo[cm$Value == "Gmin"], 2 ) )
+
+update_result_csv( name = "Ghat hetero hi",
+                   value = round( cm$CI.hi[cm$Value == "Gmin"], 2 ) )
