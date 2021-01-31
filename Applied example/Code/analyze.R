@@ -1,6 +1,6 @@
 
 # @for paper: add same caveat about robust specification as in JAMA supplement
-
+# @save helper fns from this since they're useful for everything
 
 # FROM BEFORE:
 # Note: Results produced by this script may differ slightly from those presented in the main text.
@@ -35,7 +35,11 @@ d = fread("kodama_prepped.csv")
 # rounding digits
 digits = 2
 
+# no sci notation
 options( scipen = 99 )
+
+# should we redo the slow, bootstrapped plot?
+redo.bootstrapped.plot = FALSE
 
 ####################### NAIVE META-ANALYSIS ####################### 
 
@@ -46,6 +50,8 @@ options( scipen = 99 )
 ##### Naive meta-analysis #####
 ( meta = rma.uni( yi = d$yi, 
                   vi = d$vi, 
+                  slab = d$study,  # for use in forest plot later
+                  measure = "RR",  # ditto
                   method = "REML", 
                   knha = TRUE ) )
 
@@ -88,7 +94,7 @@ update_result_csv( name = "Naive meta pval",
 
 ##### Normality #####
 d$calib = calib_ests( yi = d$yi,
-                        sei = sqrt(d$vi) )
+                      sei = sqrt(d$vi) )
 
 cat("\n\nShapiro test: ")
 print( shapiro.test(d$calib) )
@@ -101,8 +107,8 @@ qqline(d$calib, col = "red")
 
 ###### E-value for point estimate ######
 evals = evalue( est = RR( exp(meta$b) ),
-        lo = RR( exp(meta$ci.lb) ),
-        hi = RR( exp(meta$ci.ub) ) )
+                lo = RR( exp(meta$ci.lb) ),
+                hi = RR( exp(meta$ci.ub) ) )
 
 # save results
 update_result_csv( name = "Evalue est",
@@ -135,7 +141,7 @@ update_result_csv( name = "Naive perc gt 1.1",
 
 ###### Homogeneous Bias ######
 
-cm = confounded_meta( method = "calibrated",
+cmHomo = confounded_meta( method = "calibrated",
                       q = log(1.1),
                       r = 0.15,
                       tail = "above",
@@ -145,36 +151,136 @@ cm = confounded_meta( method = "calibrated",
                       vi.name = "vi",
                       R = 1000 )
 
+# save for plot
+ThatHomo = cmHomo$Est[cmHomo$Value == "Tmin"]
+GhatHomo = cmHomo$Est[cmHomo$Value == "Gmin"]
+
 # save results
 update_result_csv( name = "Ghat homogeneous",
-                   value = round( cm$Est[cm$Value == "Gmin"], 2 ) )
+                   value = round( GhatHomo, 2 ) )
 
 update_result_csv( name = "Ghat homogeneous lo",
-                   value = round( cm$CI.lo[cm$Value == "Gmin"], 2 ) )
+                   value = round( cmHomo$CI.lo[cmHomo$Value == "Gmin"], 2 ) )
 
 update_result_csv( name = "Ghat homogeneous hi",
-                   value = round( cm$CI.hi[cm$Value == "Gmin"], 2 ) )
+                   value = round( cmHomo$CI.hi[cmHomo$Value == "Gmin"], 2 ) )
 
 
 ###### Heterogeneous Bias ######
 
-cm = confounded_meta( method = "parametric",
-                 q = log(1.1),
-                 r = 0.15,
-                 tail = "above",
-                 muB = log(1.5),
-                 sigB = sqrt( 0.8 * meta$tau2 ),
-                 yr = meta$b,
-                 vyr = meta$se^2,
-                 t2 = meta$tau2,
-                 vt2 = meta$se.tau2^2 )
+cmHetero = confounded_meta( method = "parametric",
+                      q = log(1.1),
+                      r = 0.15,
+                      tail = "above",
+                      muB = log(1.5),
+                      sigB = sqrt( 0.8 * meta$tau2 ),
+                      yr = meta$b,
+                      vyr = meta$se^2,
+                      t2 = meta$tau2,
+                      vt2 = meta$se.tau2^2 )
+
+
+# save for plot
+ThatHetero = cmHetero$Est[cmHetero$Value == "Tmin"]
+GhatHetero = cmHetero$Est[cmHetero$Value == "Gmin"]
 
 # save results
 update_result_csv( name = "Ghat hetero",
-                   value = round( cm$Est[cm$Value == "Gmin"], 2 ) )
+                   value = round( GhatHetero, 2 ) )
 
 update_result_csv( name = "Ghat hetero lo",
-                   value = round( cm$CI.lo[cm$Value == "Gmin"], 2 ) )
+                   value = round( cmPar$CI.lo[cmPar$Value == "Gmin"], 2 ) )
 
 update_result_csv( name = "Ghat hetero hi",
-                   value = round( cm$CI.hi[cm$Value == "Gmin"], 2 ) )
+                   value = round( cmPar$CI.hi[cmPar$Value == "Gmin"], 2 ) )
+
+
+####################### PLOTS #######################
+
+##### Forest Plot #####
+
+for ( dir in c(results.dir, overleaf.dir) ) {
+  setwd(dir)
+  png( filename = "kodama_forest.png" )
+  forest(meta,
+         showweights = FALSE,
+         header = TRUE,
+         xlab = "Estimate (RR)",
+         mlab = "Pooled estimate",
+         transf = exp,
+         steps = 9,
+         order = "obs",
+         col = "orange",
+         refline = 1 )
+  dev.off()
+}
+
+##### Homogeneous Bias Line Plot #####
+
+if ( redo.bootstrapped.plot == TRUE ) {
+  p = sens_plot( method = "calibrated",
+                 type = "line",
+                 
+                 q = log(1.1),
+                 tail = "above",
+                 Bmax = log(2.5),
+                 breaks.x1 = seq( 1, 2.5, .25 ),
+                 
+                 dat = d,
+                 yi.name = "yi",
+                 vi.name = "vi",
+                 R = 1000 )
+  
+  # customize
+  p = p + geom_hline( yintercept = 0.15, lty = 2, color = "red" ) +
+    geom_vline( xintercept = ThatHomo, lty = 2, color = "red" )
+  
+}
+
+my_ggsave( name = "kodama_plot_homo.pdf",
+           width = 6,
+           height = 5 )
+
+
+##### Heterogeneous Bias Line Plot #####
+
+sens_plot( method = "parametric",
+           type = "line",
+           q = log(1.1),
+           tail = "above",
+           Bmax = log(2.5),
+           breaks.x1 = seq( 1, 2.5, .25 ),
+           
+           muB = log(1.5),
+           sigB = sqrt( 0.8 * meta$tau2 ),
+           yr = meta$b,
+           vyr = meta$se^2,
+           t2 = meta$tau2,
+           vt2 = meta$se.tau2^2 )
+
+p2 = last_plot()
+
+# customize
+p2 = p2 + geom_hline( yintercept = 0.15, lty = 2, color = "red" ) +
+  geom_vline( xintercept = ThatHetero, lty = 2, color = "red" ) 
+
+my_ggsave( name = "kodama_plot_homo.pdf",
+           width = 6,
+           height = 5 )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
