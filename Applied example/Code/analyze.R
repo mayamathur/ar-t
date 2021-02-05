@@ -1,12 +1,4 @@
 
-# @for paper: add same caveat about robust specification as in JAMA supplement
-# @save helper fns from this since they're useful for everything
-
-# FROM BEFORE:
-# Note: Results produced by this script may differ slightly from those presented in the main text.
-#  Results in the main text were from the website, for which we had used rounded values as inputs.
-#  Here we use exact inputs. Also, confidence intervals produced by bootstrapping can differ slightly 
-#  across multiple runs. 
 
 rm( list = ls() )
 
@@ -20,6 +12,7 @@ library(testthat)
 library(boot)
 library(EValue)
 library(here)
+library(data.table)
 
 code.dir = here("Applied example/Code")
 data.dir = here("Applied example/data")
