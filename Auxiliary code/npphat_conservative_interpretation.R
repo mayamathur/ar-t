@@ -13,37 +13,97 @@ library(testthat)
 library(metafor)
 
 
+# generate from a uniform mixture with endpoints [-b, -a] and [a, b]
+#  but shifted so that the grand mean is mu
+runif2 = function(n,
+                  mu,
+                  V) {
+  # calculate lower limit for positive distribution, a
+  # arbitrary, but can't have too large or else it;s impossible to find
+  #  a valid b
+  a = sqrt(V)/2  
+  
+  # calculate upper endpoint for positive distribution, b
+  b = abs( 0.5 * ( sqrt(3) * sqrt( 4*V - a^2 ) - a ) )
+  
+  # prior to mean shift
+  components = sample(1:2,
+                      prob=c(0.5, 0.5),
+                      size=n,
+                      replace=TRUE)
+  
+  mins = c( -b, a )
+  maxes = c( -a, b )
+  
+  samples = runif(n=n,
+                  min=mins[components],
+                  max=maxes[components])
+  
+  # mean-shift them
+  samples = samples + mu
+  
+  return( list(x = samples,
+               a = a, 
+               b = b) )
+}
+
+
 ############################## SIMULATE DATA ############################## 
 
 k = 500
 
-# true causal mean is less than q with no heterogeneity
-# so true Phat = 0
-muT = 0.8
+# need muT < q to be in the correct case
+muT = 1
 q = 1.2
-VT = 0.3
+VT = 0.25
 # study-level population causal effects
 thT = rnorm( mean = muT, sd = sqrt(VT), n = k )
 summary(thT)
 
-# assumed homogeneous bias 
-Bhomo = 0.4
-
 # true bias in each study (very heterogeneous)
 muB.star = 0.2
-Bi.star = rnorm( mean = muB.star, sd = 5, n = k ) 
-# truncate it
-Bi.star = pmin( Bhomo, Bi.star )
-# optionally, make it always > 0 (biased upward)
-Bi.star = pmax( 0, Bi.star)
-summary(Bi.star)
 
-# draw studies
-se = runif( n = k, min = 0.1, max = 0.5 )
+# assumed homogeneous bias 
+Bhomo = muB.star
+
+
+##### Draw Bias #####
+# # truncated bias
+# Bi.star = rnorm( mean = muB.star, sd = 5, n = k ) 
+# # truncate it
+# Bi.star = pmin( Bhomo, Bi.star )
+# # optionally, make it always > 0 (biased upward)
+# Bi.star = pmax( 0, Bi.star)
+# summary(Bi.star)
+
+# # non-truncated exponential bias
+# Bi.star = rexp( n = k, rate = 1/muB.star )
+# # hist(Bi.star)
+# summary(Bi.star)
+
+# **SAVE: non-truncated bimodal bias
+# this is a great example because ensHomo is really biased, but ensHomo3 is not 
+# bias heterogeneity is in terms of true heterogeneity 
+Bi.star = runif2( n = k, mu = muB.star, V = VT * 1.2)$x
+hist(Bi.star)
+
+# bias correlated with true effects and exponential
+# shifted to have desired muB
+beta = 1.3
+x = rexp( n = k, rate = 1/(thT*beta) )
+Bi.star = x - mean(x) + muB.star
+hist(Bi.star)
+summary(Bi.star)
+mean(Bi.star); muB.star
+
+
+##### Draw Studies #####
+se = runif( n = k, min = 0.1, max = .1 )
 #se = rep(0.0001,k)  # n -> infinity for all studiess
 eps = rnorm( n = k, mean = 0, sd = se )
 # population confounded effects with hetero bias
 thC = thT + Bi.star
+hist(thC)
 
 # study-level confounded estimates
 yiC = thC + eps
@@ -115,19 +175,13 @@ ensHomo = ( c(meta1$b) - Bhomo + sqrt( c(meta1$tau2) / ( c(meta1$tau2) + se^2 ) 
 hist(ensHomo)
 
 ( PhatHomo = mean(ensHomo > q) )
-
-
-##### 2021-2-8 Calibration #2 #####
-
-# using mean bias,  but wrong residual
-ensHomo2 = ( c(meta1$b) - mean(Bi.star) + sqrt( c(meta2$tau2) / ( c(meta2$tau2) + se^2 ) ) * ( yiC - c(meta1$b) ) ) 
-
-( PhatHomo2 = mean(ensHomo2 > q) )
 # **yes, unfortunately this is too large because the residuals are too variable
 
 
-##### 2021-2-8 Calibration #2 #####
 
+##### ***2021-2-8 Calibration #2 #####
+
+# **this one works, but obviously the numerator is unknown, so in practice we have to bound it
 # try to fix the variance of residuals
 # changed denom of calibration term to the CONFOUNDED heterogeneity to cancel out when taking
 #  var of this whole thing
@@ -139,35 +193,36 @@ sqrt( c(meta2$tau2) / ( c(meta1$tau2) + se^2 ) ) * ( yiC - c(meta1$b) ); VT
 ( PhatHomo3 = mean(ensHomo3 > q) )
 
 
-##### Toward Theory #####
-
-# look at the yi that are candidates to be above vs. below q with different calibration #####
-
-mean( yiC < c(meta1$b) - mean(Bi.star) )  # these will increase when calibrating but remain <q regardless of how we calibrate (because the *corrected* mean estimate is < q)
-mean( yiC > c(meta1$b) - mean(Bi.star) & yiC < q )  # this will decrease when calibrating but again remain <q regardless of how we calibrate
-mean( yiC > q )  # these are the important ones that could become <q depending on how we calibrate
+# this really seems to work pretty well
 
 
+##### ***2021-2-9 Calibration #4 #####
+# now use our upper bound on VB in the numerator
+# suppose we actually guess the upper bound correctly
 
-# of these candidates, how often are they >q under homo calibration but <q under hetero calibration?
-ind = which( yiC > q )
-mean( yiT[ind] > q )
-mean( ensHomo[ind] > q )
-mean( ensHet[ind] > q )
+# sanity check
+expect_equal( var(thT),
+              var(thC) - var(Bi.star) - 2 * cor(thT, Bi.star) * sd(thT) * sd(Bi.star) )
 
-# are they EVER larger with homo calibration?
-mean( ensHomo[ind] > ensHet[ind] )
-# **yes, sometimes
+# upper bound setting correlation to 1
+UB = var(Bi.star)
+UB.rho = 0.5
+var(thT); var(thC) - UB - 2 *UB.rho* sd(thT) * sqrt(UB)
+
+# conservative heterogeneity estimate
+t2t.cons = min(0, var(thC) - UB - 2 *UB.rho* sd(thT) * sqrt(UB) )
+
+ensHomo4 = ( c(meta1$b) - mean(Bi.star) + sqrt( c( ) / ( c(meta1$tau2) + se^2 ) ) * ( yiC - c(meta1$b) ) ) 
+
+# should be close: 
+sqrt( c(meta2$tau2) / ( c(meta1$tau2) + se^2 ) ) * ( yiC - c(meta1$b) ); VT
+
+( PhatHomo3 = mean(ensHomo3 > q) )
 
 
-# check intermediate theory
-c1 = sqrt( c(meta1$tau2) / ( c(meta1$tau2) + se^2 ) )
-c2 = sqrt( c(meta2$tau2) / ( c(meta2$tau2) + se^2 ) )
+# this really seems to work pretty well
 
-expect_equal( ensHomo - ensHet,
-              ( muB.star - Bhomo ) + (c1 - c2)*yiC - (c1 - c2)*c(meta1$b) + c2*Bi.star - c2*c(muB.star),
-              tol = 0.001 )
 
-summary( (c2 - c1) / (c2-1) )
+
 
 

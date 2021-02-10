@@ -10,9 +10,14 @@ library(dplyr)
 library(metafor)
 library(testthat)
 library(boot)
-library(EValue)
+#library(EValue)
 library(here)
 library(data.table)
+
+#@use dev versions of code that have heterogeneous Tmin, Gmin
+detach("package:EValue", unload = TRUE)
+setwd("~/Dropbox/Personal computer/Independent studies/R packages/EValue package (git)/evalue_package/EValue/R")
+source("meta-analysis.R")
 
 code.dir = here("Applied example/Code")
 data.dir = here("Applied example/data")
@@ -133,7 +138,6 @@ update_result_csv( name = "Naive perc gt 1.1",
 
 
 ###### Homogeneous Bias ######
-
 cmHomo = confounded_meta( method = "calibrated",
                       q = log(1.1),
                       r = 0.15,
@@ -174,6 +178,7 @@ cmHetero = confounded_meta( method = "parametric",
 
 
 # save for plot
+#@c.f. homogeneous bias with parametric estimation: Tmin = 1.93, Gmin = 3.27
 ThatHetero = cmHetero$Est[cmHetero$Value == "Tmin"]
 GhatHetero = cmHetero$Est[cmHetero$Value == "Gmin"]
 
@@ -182,10 +187,10 @@ update_result_csv( name = "Ghat hetero",
                    value = round( GhatHetero, 2 ) )
 
 update_result_csv( name = "Ghat hetero lo",
-                   value = round( cmPar$CI.lo[cmPar$Value == "Gmin"], 2 ) )
+                   value = round( cmHetero$CI.lo[cmHetero$Value == "Gmin"], 2 ) )
 
 update_result_csv( name = "Ghat hetero hi",
-                   value = round( cmPar$CI.hi[cmPar$Value == "Gmin"], 2 ) )
+                   value = round( cmHetero$CI.hi[cmHetero$Value == "Gmin"], 2 ) )
 
 
 ####################### PLOTS #######################
@@ -255,9 +260,9 @@ p2 = last_plot()
 
 # customize
 p2 = p2 + geom_hline( yintercept = 0.15, lty = 2, color = "red" ) +
-  geom_vline( xintercept = ThatHetero, lty = 2, color = "red" ) 
+  geom_vline( xintercept = ThatHetero, lty = 2, color = "red" )
 
-my_ggsave( name = "kodama_plot_homo.pdf",
+my_ggsave( name = "kodama_plot_hetero.pdf",
            width = 6,
            height = 5 )
 
