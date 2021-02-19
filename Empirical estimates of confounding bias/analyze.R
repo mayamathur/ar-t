@@ -24,6 +24,7 @@ d = read.csv("prepped_merged_data.csv")
 
 ########################### CALCULATE CALIBRATED ESTIMATES WITHIN SOURCE ########################### 
 
+# yi's are log-ratios (obs vs. RCT)
 d = d %>% group_by(study) %>%
   mutate( calib = calib_ests(yi = yi,
                              sei = sqrt(vyi) ) )

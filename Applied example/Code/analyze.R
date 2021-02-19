@@ -1,5 +1,4 @@
 
-
 rm( list = ls() )
 
 ####################### SET UP ####################### 
@@ -18,6 +17,8 @@ library(data.table)
 detach("package:EValue", unload = TRUE)
 setwd("~/Dropbox/Personal computer/Independent studies/R packages/EValue package (git)/evalue_package/EValue/R")
 source("meta-analysis.R")
+source("EValue.R")
+source("effect_measures.R")
 
 code.dir = here("Applied example/Code")
 data.dir = here("Applied example/data")
@@ -36,14 +37,18 @@ digits = 2
 # no sci notation
 options( scipen = 99 )
 
-# should we redo the slow, bootstrapped plot?
+# should we redo the slow, bootstrapped plot in the Supplement?
 redo.bootstrapped.plot = FALSE
+
+# should we overwrite the numerical results in csv file?
+# including bootstrapped CIs, for example
+overwrite.results = FALSE
+
+
 
 ####################### NAIVE META-ANALYSIS ####################### 
 
-# got through each meta-analysis and fit naive analysis
-# also check normality, relevant only for parametric sensitivity analyses that use
-#   heterogeneous bias
+# not correcting for confounding
 
 ##### Naive meta-analysis #####
 ( meta = rma.uni( yi = d$yi, 
@@ -71,26 +76,30 @@ cat("\n***Naive estimate (RR or HR) and CI:", paste( round( exp(mu), digits ),
                                                      "]",
                                                      sep = "") )  
 
-update_result_csv( name = "Naive meta est",
-                   value = round( exp(mu), digits ) )
-
-update_result_csv( name = "Naive meta tau",
-                   value = round( sqrt(t2), digits ) )
-
-
-update_result_csv( name = "Naive meta lo",
-                   value = round( exp(mu.lo), digits ) )
-
-
-update_result_csv( name = "Naive meta hi",
-                   value = round( exp(mu.hi), digits ) )
-
-
-update_result_csv( name = "Naive meta pval",
-                   value = format.pval( mu.pval, eps=0.001 ) )
-
+# write results to csv file to be piped straight into manuscript
+if ( overwrite.results == TRUE ) {
+  update_result_csv( name = "Naive meta est",
+                     value = round( exp(mu), digits ) )
+  
+  update_result_csv( name = "Naive meta tau",
+                     value = round( sqrt(t2), digits ) )
+  
+  
+  update_result_csv( name = "Naive meta lo",
+                     value = round( exp(mu.lo), digits ) )
+  
+  
+  update_result_csv( name = "Naive meta hi",
+                     value = round( exp(mu.hi), digits ) )
+  
+  
+  update_result_csv( name = "Naive meta pval",
+                     value = format.pval( mu.pval, eps=0.001 ) )
+}
 
 ##### Normality #####
+
+# relevant for parametric estimation only
 d$calib = calib_ests( yi = d$yi,
                       sei = sqrt(d$vi) )
 
@@ -109,16 +118,17 @@ evals = evalue( est = RR( exp(meta$b) ),
                 hi = RR( exp(meta$ci.ub) ) )
 
 # save results
-update_result_csv( name = "Evalue est",
-                   value = round( evals[ "E-values", "point" ], digits ) )
-
-update_result_csv( name = "Evalue CI",
-                   value = round( evals[ "E-values", "lower" ], digits ) )
-
+if ( overwrite.results == TRUE ) {
+  update_result_csv( name = "Evalue est",
+                     value = round( evals[ "E-values", "point" ], digits ) )
+  
+  update_result_csv( name = "Evalue CI",
+                     value = round( evals[ "E-values", "lower" ], digits ) )
+}
 
 ###### Naive Phat ######
 # uncorrected estimate of effects with RR > 1.1
-# Tmin and Gmin here also give amount of bias and of confounding required
+# Tmin and Gmin here also give amount of homogeneous bias and of confounding required
 #   to reduce to less than 15% the percentage of meaningfully large effects
 cm = confounded_meta( method = "calibrated",
                       q = log(1.1),
@@ -131,67 +141,71 @@ cm = confounded_meta( method = "calibrated",
                       vi.name = "vi" )
 
 # save results
-update_result_csv( name = "Naive perc gt 1.1",
-                   value = round( 100*cm$Est[cm$Value == "Prop"], 0 ) )
-
-# no CI because at the ceiling
+if ( overwrite.results == TRUE ) {
+  update_result_csv( name = "Naive perc gt 1.1",
+                     value = round( 100*cm$Est[cm$Value == "Prop"], 0 ) )
+}
+# no CI because at the ceiling, so bootstrapped doesn't provide CI
 
 
 ###### Homogeneous Bias ######
+
 cmHomo = confounded_meta( method = "calibrated",
-                      q = log(1.1),
-                      r = 0.15,
-                      tail = "above",
-                      
-                      dat = d,
-                      yi.name = "yi",
-                      vi.name = "vi",
-                      R = 1000 )
+                          q = log(1.1),
+                          r = 0.15,
+                          tail = "above",
+                          
+                          dat = d,
+                          yi.name = "yi",
+                          vi.name = "vi",
+                          R = 1000 )
 
 # save for plot
 ThatHomo = cmHomo$Est[cmHomo$Value == "Tmin"]
 GhatHomo = cmHomo$Est[cmHomo$Value == "Gmin"]
 
 # save results
-update_result_csv( name = "Ghat homogeneous",
-                   value = round( GhatHomo, 2 ) )
-
-update_result_csv( name = "Ghat homogeneous lo",
-                   value = round( cmHomo$CI.lo[cmHomo$Value == "Gmin"], 2 ) )
-
-update_result_csv( name = "Ghat homogeneous hi",
-                   value = round( cmHomo$CI.hi[cmHomo$Value == "Gmin"], 2 ) )
-
+if ( overwrite.results == TRUE ) {
+  
+  update_result_csv( name = "Ghat homogeneous",
+                     value = round( GhatHomo, 2 ) )
+  
+  update_result_csv( name = "Ghat homogeneous lo",
+                     value = round( cmHomo$CI.lo[cmHomo$Value == "Gmin"], 2 ) )
+  
+  update_result_csv( name = "Ghat homogeneous hi",
+                     value = round( cmHomo$CI.hi[cmHomo$Value == "Gmin"], 2 ) )
+}
 
 ###### Heterogeneous Bias ######
 
 cmHetero = confounded_meta( method = "parametric",
-                      q = log(1.1),
-                      r = 0.15,
-                      tail = "above",
-                      muB = log(1.5),
-                      sigB = sqrt( 0.8 * meta$tau2 ),
-                      yr = meta$b,
-                      vyr = meta$se^2,
-                      t2 = meta$tau2,
-                      vt2 = meta$se.tau2^2 )
+                            q = log(1.1),
+                            r = 0.15,
+                            tail = "above",
+                            sigB = sqrt( 0.8 * meta$tau2 ),
+                            yr = meta$b,
+                            vyr = meta$se^2,
+                            t2 = meta$tau2,
+                            vt2 = meta$se.tau2^2 )
 
 
 # save for plot
-#@c.f. homogeneous bias with parametric estimation: Tmin = 1.93, Gmin = 3.27
+# c.f. homogeneous bias with parametric estimation: Tmin = 1.93, Gmin = 3.27
 ThatHetero = cmHetero$Est[cmHetero$Value == "Tmin"]
 GhatHetero = cmHetero$Est[cmHetero$Value == "Gmin"]
 
 # save results
-update_result_csv( name = "Ghat hetero",
-                   value = round( GhatHetero, 2 ) )
-
-update_result_csv( name = "Ghat hetero lo",
-                   value = round( cmHetero$CI.lo[cmHetero$Value == "Gmin"], 2 ) )
-
-update_result_csv( name = "Ghat hetero hi",
-                   value = round( cmHetero$CI.hi[cmHetero$Value == "Gmin"], 2 ) )
-
+if ( overwrite.results == TRUE ) {
+  update_result_csv( name = "Ghat hetero",
+                     value = round( GhatHetero, 2 ) )
+  
+  update_result_csv( name = "Ghat hetero lo",
+                     value = round( cmHetero$CI.lo[cmHetero$Value == "Gmin"], 2 ) )
+  
+  update_result_csv( name = "Ghat hetero hi",
+                     value = round( cmHetero$CI.hi[cmHetero$Value == "Gmin"], 2 ) )
+}
 
 ####################### PLOTS #######################
 

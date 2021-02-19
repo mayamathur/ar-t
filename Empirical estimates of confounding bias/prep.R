@@ -1,4 +1,7 @@
 
+# This script processes study-level data scraped from the meta-meta-analyses.s
+
+rm(list = ls())
 
 ########################### PRELIMINARIES ########################### 
 
@@ -20,7 +23,7 @@ code.dir = here()
 ########################### BUN 2020 ########################### 
 
 # can't scrape because they don't have study-level data
-# @try emailing them
+#  no luck emailing them
 
 ########################### GOLDER 2011 ########################### 
 
@@ -51,10 +54,12 @@ dg3$study = "Golder 2011"
 setwd(raw.data.dir)
 setwd("Shikata data")
 
+# scraped from Table 2 (pg 674)
 ds = read_xlsx("Shikata table scraped.xlsx")
 expect_equal( nrow(ds), 52 )
 
-
+# this one reported the ORs for RCTs and observationals separately, so we will 
+#  calculate the ratios ourselves
 # get variances of log-ratios from RCTs and observationals
 #  so we can use the delta method for the ratio
 RCT.var = scrape_meta( type = "RR",
@@ -75,7 +80,7 @@ ds2 = data.frame( est.obs = ds$est.obs,
                   yi = log( ds$est.obs / ds$est.RCT ) )
 
 
-# get variance of log-ratio using delta method
+# get variance of log-ratio (obs vs. RCT) using delta method
 ds2 = ds2 %>% rowwise() %>%
   mutate( vyi = deltamethod( ~ log(x1) - log(x2),
                              mean = c( est.obs, est.RCT ), cov = diag( c(obs.var, RCT.var) ) )^2 )
@@ -102,11 +107,9 @@ ds2$study = "Shikata 2006"
 # could digitize the scatterplot, but doesn't have variances
 
 
-
 ########################### FRANKLIN 2020 (RCT-DUPLICATE) ########################### 
 
-# data scraped from page 6 forest plot
-# ratios are OR_RCT / OR_obs 
+# data provided by authors
 setwd(raw.data.dir)
 setwd("Franklin data")
 
