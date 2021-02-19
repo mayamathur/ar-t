@@ -1,4 +1,10 @@
 
+# Overview
+
+This repository contains all data, materials, and code required to reproduce all analyses in the paper:
+
+Mathur MB & VanderWeele TJ (under review). Methods for confounding and other biases in meta-analyses: Review and recommendations.  
+
 # Applied example
 
 You can reproduce the analyses for the applied example by running the code `analyze.R` in the directory **Applied example/Code**. That file calls helper functions in `helper.R` and uses the dataset `kodama_prepped.csv`.
