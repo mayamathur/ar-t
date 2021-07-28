@@ -3,7 +3,7 @@
 
 This repository contains all data, materials, and code required to reproduce all analyses in the paper:
 
-Mathur MB & VanderWeele TJ (under review). Methods for confounding and other biases in meta-analyses: Review and recommendations.  
+Mathur MB & VanderWeele TJ (2022). Methods to address confounding and other biases in meta-analyses: Review and recommendations. *Annual Review of Public Health*. In press.
 
 # Applied example
 
