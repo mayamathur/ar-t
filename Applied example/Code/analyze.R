@@ -1,5 +1,4 @@
 
-rm( list = ls() )
 
 ####################### SET UP ####################### 
 
@@ -13,16 +12,13 @@ library(EValue)
 library(here)
 library(data.table)
 
-# #@use dev versions of code that have heterogeneous Tmin, Gmin
-# detach("package:EValue", unload = TRUE)
-# setwd("~/Dropbox/Personal computer/Independent studies/R packages/EValue package (git)/evalue_package/EValue/R")
-# source("meta-analysis.R")
-# source("EValue.R")
-# source("effect_measures.R")
 
 code.dir = here("Applied example/Code")
 data.dir = here("Applied example/data")
 results.dir = here("Applied example/Results from R")
+
+# this directory is defined only locally and allows us to pipe the numerical 
+#  results directly into the TeX file online containing the manuscript
 overleaf.dir = "~/Dropbox/Apps/Overleaf/AR-T (Ann Rev tutorial on bias in meta-analyses)/R_objects"
 
 setwd(code.dir)

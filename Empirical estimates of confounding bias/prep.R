@@ -1,5 +1,5 @@
 
-# This script processes study-level data scraped from the meta-meta-analyses.s
+# This script processes study-level data scraped from the meta-meta-analyses.
 
 rm(list = ls())
 
