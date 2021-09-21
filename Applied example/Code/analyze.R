@@ -155,6 +155,7 @@ cmHomo = confounded_meta( method = "calibrated",
                           yi.name = "yi",
                           vi.name = "vi",
                           R = 1000 )
+cmHomo 
 
 # save for plot
 ThatHomo = cmHomo$Est[cmHomo$Value == "Tmin"]
